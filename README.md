@@ -2,7 +2,8 @@
 
 An unofficial Home Assistant integration for a Sainsbury's Groceries Online
 account. It exposes the current basket, latest order and reserved delivery or
-collection slot, and provides actions for catalogue search and basket changes.
+collection slot, provides actions for catalogue search and basket changes, and
+registers an LLM API for Assist and MCP.
 
 This project is not affiliated with, endorsed by or supported by J Sainsbury plc.
 It uses the unofficial
@@ -130,6 +131,25 @@ actions:
 All basket actions request an immediate account refresh after succeeding.
 An empty product search is successful and returns an empty `products` list.
 
+## Assist and MCP
+
+Each configured account registers an LLM API named **Sainsbury's ({account
+name})**. Enable it in a conversation agent's **Control Home Assistant**
+options, or connect an MCP client to `/api/mcp/sainsburys-<config_entry_id>`.
+The API identifier is listed by the Home Assistant `llm/api/list` WebSocket
+command.
+
+Tools:
+
+- `search_products`: catalogue search; use a returned `product_uid` with the
+  basket tools. Do not invent product UIDs.
+- `get_product`: details for one `product_uid`.
+- `get_basket`: current basket lines and totals.
+- `add_basket_item`, `set_basket_item`, `remove_basket_item`, `clear_basket`:
+  the same basket changes as the actions above.
+
+The API cannot check out, take payment, or book a delivery or collection slot.
+
 ## Data updates
 
 Account data is polled every 15 minutes. Basket actions trigger an immediate
@@ -146,7 +166,8 @@ reauthentication.
 - Checkout, payment and slot booking are not supported.
 - Favourites and Nectar offer unlocking are not exposed.
 - Product search is an action response, not a browsable Home Assistant entity.
-- Catch-weight products may require information not exposed by the actions.
+- Catch-weight products may require information not exposed by the actions
+  or LLM tools.
 - Sainsbury's may rate-limit or block automated access.
 
 ## Troubleshooting

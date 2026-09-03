@@ -14,6 +14,7 @@ from .auth import create_auth
 from .const import CONF_SESSION, DOMAIN
 from .coordinator import SainsburysDataUpdateCoordinator
 from .data import SainsburysConfigEntry, SainsburysRuntimeData
+from .llm import async_register_llm_api
 from .services import async_setup_services
 
 if TYPE_CHECKING:
@@ -52,6 +53,7 @@ async def async_setup_entry(
         raise
 
     entry.runtime_data = SainsburysRuntimeData(client, coordinator, session)
+    async_register_llm_api(hass, entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 

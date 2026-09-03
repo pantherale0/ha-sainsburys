@@ -8,6 +8,7 @@ import pytest
 from homeassistant.const import CONF_EMAIL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import llm
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from pysainsburys.exceptions import AuthError, UnknownEndpointError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -15,6 +16,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.sainsburys import async_setup_entry, async_unload_entry
 from custom_components.sainsburys.const import CONF_SESSION, DOMAIN
 from custom_components.sainsburys.coordinator import SainsburysDataUpdateCoordinator
+from custom_components.sainsburys.llm import llm_api_id
 
 
 async def test_setup_and_unload(
@@ -59,6 +61,9 @@ async def test_setup_and_unload(
         assert await async_setup_entry(hass, entry)
         assert entry.runtime_data.client is client
         assert entry.runtime_data.session is session
+        assert any(
+            api.id == llm_api_id(entry.entry_id) for api in llm.async_get_apis(hass)
+        )
         forward.assert_awaited_once()
         assert await async_unload_entry(hass, entry)
 

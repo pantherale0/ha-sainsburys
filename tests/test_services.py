@@ -271,3 +271,26 @@ async def test_basket_connection_errors(
             service_data,
             blocking=True,
         )
+
+
+async def test_clear_basket_unexpected_value_error(hass: HomeAssistant) -> None:
+    """Test clear_basket does not map unexpected ValueError to validation."""
+    entry = _entry()
+    entry.runtime_data.coordinator.data.customer.basket.clear.side_effect = ValueError(
+        "unexpected"
+    )
+    async_setup_services(hass)
+
+    with (
+        patch(
+            "custom_components.sainsburys.services._entry_for_call",
+            return_value=entry,
+        ),
+        pytest.raises(ValueError, match="unexpected"),
+    ):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_CLEAR_BASKET,
+            {},
+            blocking=True,
+        )
