@@ -1,0 +1,221 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "This Sainsbury's account is already configured.",
+      "cannot_connect": "Unable to connect to Sainsbury's. Try again later.",
+      "invalid_auth": "Sainsbury's rejected the account credentials.",
+      "reauth_successful": "Sainsbury's account re-authenticated successfully.",
+      "reconfigure_successful": "Sainsbury's account configuration updated successfully.",
+      "unique_id_mismatch": "These credentials belong to a different Sainsbury's account."
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to Sainsbury's. Try again later.",
+      "invalid_auth": "Invalid email address or password.",
+      "invalid_mfa": "Invalid verification code.",
+      "unknown": "Unexpected error."
+    },
+    "step": {
+      "mfa": {
+        "data": {
+          "code": "Verification code"
+        },
+        "data_description": {
+          "code": "The one-time code sent by Sainsbury's."
+        },
+        "description": "Enter the verification code sent for {email}.",
+        "title": "Verify your account"
+      },
+      "reauth_confirm": {
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        },
+        "description": "Sign in again to restore access to {name}.",
+        "title": "Re-authenticate Sainsbury's"
+      },
+      "reconfigure": {
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        },
+        "description": "Sign in again to update the credentials for this account.",
+        "title": "Reconfigure Sainsbury's"
+      },
+      "user": {
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        },
+        "data_description": {
+          "email": "The email address for your Sainsbury's account.",
+          "password": "The password for your Sainsbury's account. It is not stored by Home Assistant."
+        },
+        "description": "Connect a Sainsbury's Groceries account.",
+        "title": "Sainsbury's Groceries"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "minimum_spend_met": {
+        "name": "Minimum spend met"
+      },
+      "nectar_linked": {
+        "name": "Nectar linked"
+      },
+      "order_amendable": {
+        "name": "Order amendable"
+      },
+      "slot_reserved": {
+        "name": "Slot reserved"
+      }
+    },
+    "sensor": {
+      "amend_cutoff": {
+        "name": "Amend cutoff"
+      },
+      "basket_item_count": {
+        "name": "Basket item count"
+      },
+      "basket_savings": {
+        "name": "Basket savings"
+      },
+      "basket_subtotal": {
+        "name": "Basket subtotal"
+      },
+      "basket_total": {
+        "name": "Basket total"
+      },
+      "delivery_pass_expiry": {
+        "name": "Delivery pass expiry"
+      },
+      "latest_order_status": {
+        "name": "Latest order status"
+      },
+      "latest_order_total": {
+        "name": "Latest order total"
+      },
+      "nectar_savings": {
+        "name": "Nectar savings"
+      },
+      "slot_end": {
+        "name": "Slot end"
+      },
+      "slot_start": {
+        "name": "Slot start"
+      }
+    }
+  },
+  "exceptions": {
+    "action_failed": {
+      "message": "The Sainsbury's action failed due to a connection or authentication error. Try again later."
+    },
+    "authentication_failed": {
+      "message": "Sainsbury's authentication expired. Re-authenticate the integration."
+    },
+    "invalid_basket_item": {
+      "message": "The product is not present as a unique line in the basket."
+    },
+    "update_failed": {
+      "message": "Unable to update data from Sainsbury's. Try again later."
+    }
+  },
+  "services": {
+    "add_basket_item": {
+      "description": "Adds a product to the Sainsbury's basket.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Sainsbury's account to use. Optional when only one account is configured.",
+          "name": "Account"
+        },
+        "product_uid": {
+          "description": "Product identifier returned by product search.",
+          "name": "Product UID"
+        },
+        "quantity": {
+          "description": "Quantity to add.",
+          "name": "Quantity"
+        }
+      },
+      "name": "Add basket item"
+    },
+    "clear_basket": {
+      "description": "Removes all products from the Sainsbury's basket.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Sainsbury's account to use. Optional when only one account is configured.",
+          "name": "Account"
+        }
+      },
+      "name": "Clear basket"
+    },
+    "get_product": {
+      "description": "Gets details for a Sainsbury's catalogue product.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Sainsbury's account to use. Optional when only one account is configured.",
+          "name": "Account"
+        },
+        "product_uid": {
+          "description": "Sainsbury's product identifier.",
+          "name": "Product UID"
+        }
+      },
+      "name": "Get product"
+    },
+    "remove_basket_item": {
+      "description": "Removes a product from the Sainsbury's basket.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Sainsbury's account to use. Optional when only one account is configured.",
+          "name": "Account"
+        },
+        "product_uid": {
+          "description": "Sainsbury's product identifier.",
+          "name": "Product UID"
+        }
+      },
+      "name": "Remove basket item"
+    },
+    "search_products": {
+      "description": "Searches the Sainsbury's grocery catalogue and returns matching products.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Sainsbury's account to use. Optional when only one account is configured.",
+          "name": "Account"
+        },
+        "page_number": {
+          "description": "Results page to return.",
+          "name": "Page number"
+        },
+        "page_size": {
+          "description": "Maximum number of products to return.",
+          "name": "Page size"
+        },
+        "query": {
+          "description": "Product name or search terms.",
+          "name": "Query"
+        }
+      },
+      "name": "Search products"
+    },
+    "set_basket_item": {
+      "description": "Sets the absolute quantity of a product in the Sainsbury's basket.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Sainsbury's account to use. Optional when only one account is configured.",
+          "name": "Account"
+        },
+        "product_uid": {
+          "description": "Sainsbury's product identifier.",
+          "name": "Product UID"
+        },
+        "quantity": {
+          "description": "Absolute quantity. Use zero to remove the product.",
+          "name": "Quantity"
+        }
+      },
+      "name": "Set basket item"
+    }
+  }
+}

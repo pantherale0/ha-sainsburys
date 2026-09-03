@@ -1,60 +1,196 @@
-# Notice
+# Sainsbury's Groceries for Home Assistant
 
-The component and platforms in this repository are not meant to be used by a
-user, but as a "blueprint" that custom component developers can build
-upon, to make more awesome stuff.
+An unofficial Home Assistant integration for a Sainsbury's Groceries Online
+account. It exposes the current basket, latest order and reserved delivery or
+collection slot, and provides actions for catalogue search and basket changes.
 
-HAVE FUN! 😎
+This project is not affiliated with, endorsed by or supported by J Sainsbury plc.
+It uses the unofficial
+[`pysainsburys`](https://github.com/pantherale0/pysainsburys) library and may
+stop working if Sainsbury's changes its private APIs.
 
-## Why?
+## Installation
 
-This is simple, by having custom_components look (README + structure) the same
-it is easier for developers to help each other and for users to start using them.
+### HACS
 
-If you are a developer and you want to add things to this "blueprint" that you think more
-developers will have use for, please open a PR to add it :)
+1. Open HACS in Home Assistant.
+2. Add `https://github.com/pantherale0/ha-sainsburys` as a custom integration
+   repository.
+3. Search for **Sainsbury's Groceries** and install it.
+4. Restart Home Assistant.
 
-## What?
+### Manual
 
-This repository contains multiple files, here is a overview:
+1. Copy `custom_components/sainsburys` into the `custom_components` directory
+   in your Home Assistant configuration directory.
+2. Restart Home Assistant.
 
-File | Purpose | Documentation
--- | -- | --
-`.devcontainer.json` | Used for development/testing with Visual Studio Code. | [Documentation](https://code.visualstudio.com/docs/remote/containers)
-`.github/renovate.json` | Dependency update configuration for Renovate (enabled by default). | [Documentation](https://docs.renovatebot.com/configuration-options/)
-`.github/_dependabot.yml` | Dependency update configuration for Dependabot (disabled, see "Dependency updates" below). | [Documentation](https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file)
-`.github/ISSUE_TEMPLATE/*.yml` | Templates for the issue tracker | [Documentation](https://help.github.com/en/github/building-a-strong-community/configuring-issue-templates-for-your-repository)
-`custom_components/integration_blueprint/*` | Integration files, this is where everything happens. | [Documentation](https://developers.home-assistant.io/docs/creating_component_index)
-`CONTRIBUTING.md` | Guidelines on how to contribute. | [Documentation](https://help.github.com/en/github/building-a-strong-community/setting-guidelines-for-repository-contributors)
-`LICENSE` | The license file for the project. | [Documentation](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/licensing-a-repository)
-`README.md` | The file you are reading now, should contain info about the integration, installation and configuration instructions. | [Documentation](https://help.github.com/en/github/writing-on-github/basic-writing-and-formatting-syntax)
-`requirements_dev.txt` | Python packages used for development/testing this integration (also installs lint tooling via `requirements_lint.txt`). | [Documentation](https://pip.pypa.io/en/stable/user_guide/#requirements-files)
-`requirements_lint.txt` | Python packages used to lint this integration (installed by the Lint CI job). | [Documentation](https://pip.pypa.io/en/stable/user_guide/#requirements-files)
-`requirements_common.txt` | Python packages common to CI and local dev, installed first so any pip upgrade completes before other dependencies (e.g. a modern pip). | [Documentation](https://pip.pypa.io/en/stable/user_guide/#requirements-files)
+## Configuration
 
-## Dependency updates
+1. Open **Settings → Devices & services**.
+2. Select **Add integration**.
+3. Search for **Sainsbury's Groceries**.
+4. Enter the email address and password for your Sainsbury's account.
+5. If requested, enter the one-time verification code sent by Sainsbury's.
 
-This template ships with configuration for **two** dependency update tools. Pick
-**one** and remove or disable the other:
+Home Assistant stores the resulting session tokens and cookies. It does not
+store the account password. A Sainsbury's account with Groceries Online access
+is required. Each account can be configured once; multiple different accounts
+are supported.
 
-- **Renovate** (`.github/renovate.json`) is enabled by default.
-- **Dependabot** (`.github/_dependabot.yml`) is included but disabled — the `_`
-  prefix means GitHub ignores it. To use Dependabot instead, rename the file
-  back to `.github/dependabot.yml` and delete `.github/renovate.json`.
+Use **Reconfigure** from the integration menu to sign in with updated
+credentials. If a session expires, Home Assistant automatically starts a
+reauthentication flow.
 
-## How?
+## Data provided
 
-1. Create a new repository in GitHub, using this repository as a template by clicking the "Use this template" button in the GitHub UI.
-1. Open your new repository in Visual Studio Code devcontainer (Preferably with the "`Dev Containers: Clone Repository in Named Container Volume...`" option).
-1. Rename all instances of the `integration_blueprint` to `custom_components/<your_integration_domain>` (e.g. `custom_components/awesome_integration`).
-1. Rename all instances of the `Integration Blueprint` to `<Your Integration Name>` (e.g. `Awesome Integration`).
-1. Run the `scripts/develop` to start HA and test out your new integration.
+The integration creates one service device per Sainsbury's account.
 
-## Next steps
+Sensors:
 
-These are some next steps you may want to look into:
-- Add tests to your integration, [`pytest-homeassistant-custom-component`](https://github.com/MatthewFlamm/pytest-homeassistant-custom-component) can help you get started.
-- Add brand images (logo/icon).
-- Create your first release.
-- Share your integration on the [Home Assistant Forum](https://community.home-assistant.io/).
-- Submit your integration to [HACS](https://hacs.xyz/docs/publish/start).
+- Basket total, subtotal, savings and Nectar savings
+- Basket item count, with basket lines in its attributes
+- Latest order status and total
+- Reserved slot start and end
+- Order amend cutoff
+- Delivery pass expiry (diagnostic, disabled by default)
+
+Binary sensors:
+
+- Minimum spend met
+- Order amendable
+- Slot reserved
+- Nectar linked (diagnostic, disabled by default)
+
+## Actions
+
+When only one account is configured, `config_entry_id` may be omitted. Select
+it when multiple accounts are configured.
+
+### Search products
+
+`sainsburys.search_products` accepts `query`, `page_number` and `page_size`.
+It returns `products` and pagination `controls`. Product entries include the
+product UID, name, prices, availability, image URL, reviews and nutrition data
+when Sainsbury's supplies them.
+
+```yaml
+action: sainsburys.search_products
+data:
+  query: semi skimmed milk
+  page_size: 10
+response_variable: search
+```
+
+Use `{{ search.products[0].product_uid }}` to pass a selected result to a
+basket action. Search can return multiple products, so basket actions
+deliberately do not accept a product name.
+
+### Get a product
+
+`sainsburys.get_product` returns details for one `product_uid`.
+
+```yaml
+action: sainsburys.get_product
+data:
+  product_uid: "3236048"
+response_variable: product
+```
+
+### Change the basket
+
+- `sainsburys.add_basket_item`: requires `product_uid`; `quantity` defaults to
+  one.
+- `sainsburys.set_basket_item`: requires `product_uid` and the absolute
+  `quantity`. Zero removes the line.
+- `sainsburys.remove_basket_item`: requires `product_uid`.
+- `sainsburys.clear_basket`: removes all basket lines.
+
+Example automation:
+
+```yaml
+alias: Add milk to the grocery basket
+triggers:
+  - trigger: state
+    entity_id: input_button.add_milk
+actions:
+  - action: sainsburys.search_products
+    data:
+      query: Sainsbury's semi skimmed milk 2.27L
+      page_size: 1
+    response_variable: search
+  - condition: template
+    value_template: "{{ search.products | count > 0 }}"
+  - action: sainsburys.add_basket_item
+    data:
+      product_uid: "{{ search.products[0].product_uid }}"
+      quantity: 1
+```
+
+All basket actions request an immediate account refresh after succeeding.
+An empty product search is successful and returns an empty `products` list.
+
+## Data updates
+
+Account data is polled every 15 minutes. Basket actions trigger an immediate
+refresh. Product search and product detail requests run only when their actions
+are called and do not alter coordinator data.
+
+If Sainsbury's is temporarily unavailable, entities become unavailable and
+Home Assistant retries on the next update. Authentication failures prompt for
+reauthentication.
+
+## Known limitations
+
+- This is an unofficial cloud integration using private Sainsbury's endpoints.
+- Checkout, payment and slot booking are not supported.
+- Favourites and Nectar offer unlocking are not exposed.
+- Product search is an action response, not a browsable Home Assistant entity.
+- Catch-weight products may require information not exposed by the actions.
+- Sainsbury's may rate-limit or block automated access.
+
+## Troubleshooting
+
+### Invalid email, password or verification code
+
+Confirm the same credentials work on the Sainsbury's Groceries website. Start
+the flow again if the verification code expired.
+
+### Entities are unavailable
+
+Check the Home Assistant logs for `sainsburys` or `pysainsburys`. Temporary
+Sainsbury's outages recover automatically. Use **Reconfigure** if the account
+credentials changed.
+
+### Basket action says the item is invalid
+
+Run `sainsburys.search_products` and use an exact `product_uid`. If the same
+product appears on multiple basket lines, resolve the duplicate in the
+Sainsbury's website or app first.
+
+Diagnostics are available from the integration's device page. The diagnostics
+exclude credentials, account identifiers, contact details and basket line
+contents.
+
+## Removal
+
+1. Open **Settings → Devices & services**.
+2. Open **Sainsbury's Groceries**.
+3. Select the menu for the account and choose **Delete**.
+4. Remove the integration from HACS or delete
+   `custom_components/sainsburys` if it is no longer needed.
+
+Removing the integration does not delete the Sainsbury's account or change its
+basket.
+
+## Development
+
+Run `scripts/setup`, then use:
+
+```bash
+scripts/lint
+pytest
+```
+
+The integration follows Home Assistant's Integration Quality Scale rules as
+tracked in `custom_components/sainsburys/quality_scale.yaml`.

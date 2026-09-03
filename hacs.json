@@ -1,5 +1,6 @@
 {
-    "name": "Integration blueprint",
-    "homeassistant": "2026.6.4",
-    "hacs": "2.0.5"
+  "name": "Sainsbury's Groceries",
+  "homeassistant": "2026.6.4",
+  "hacs": "2.0.5",
+  "render_readme": true
 }

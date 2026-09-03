@@ -1,0 +1,73 @@
+{
+  "entity": {
+    "binary_sensor": {
+      "minimum_spend_met": {
+        "default": "mdi:cash-check"
+      },
+      "nectar_linked": {
+        "default": "mdi:cards-outline"
+      },
+      "order_amendable": {
+        "default": "mdi:cart-edit"
+      },
+      "slot_reserved": {
+        "default": "mdi:calendar-check"
+      }
+    },
+    "sensor": {
+      "amend_cutoff": {
+        "default": "mdi:clock-alert-outline"
+      },
+      "basket_item_count": {
+        "default": "mdi:cart"
+      },
+      "basket_savings": {
+        "default": "mdi:brightness-percent"
+      },
+      "basket_subtotal": {
+        "default": "mdi:cash"
+      },
+      "basket_total": {
+        "default": "mdi:cash-multiple"
+      },
+      "delivery_pass_expiry": {
+        "default": "mdi:truck-delivery-outline"
+      },
+      "latest_order_status": {
+        "default": "mdi:clipboard-list-outline"
+      },
+      "latest_order_total": {
+        "default": "mdi:receipt-text-outline"
+      },
+      "nectar_savings": {
+        "default": "mdi:cards-outline"
+      },
+      "slot_end": {
+        "default": "mdi:clock-end"
+      },
+      "slot_start": {
+        "default": "mdi:clock-start"
+      }
+    }
+  },
+  "services": {
+    "add_basket_item": {
+      "service": "mdi:cart-plus"
+    },
+    "clear_basket": {
+      "service": "mdi:cart-remove"
+    },
+    "get_product": {
+      "service": "mdi:barcode-scan"
+    },
+    "remove_basket_item": {
+      "service": "mdi:cart-minus"
+    },
+    "search_products": {
+      "service": "mdi:magnify"
+    },
+    "set_basket_item": {
+      "service": "mdi:cart-edit"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Sainsbury's Groceries integration">
+  <rect width="256" height="256" rx="48" fill="#f06c00"/>
+  <path fill="#fff" d="M67 89h122l-13 101H80L67 89Zm17 17 8 66h72l8-66H84Z"/>
+  <path fill="#fff" d="M91 103 70 63h20l20 40H91Zm74 0 20-40h20l-21 40h-19Z"/>
+  <circle cx="101" cy="204" r="12" fill="#fff"/>
+  <circle cx="157" cy="204" r="12" fill="#fff"/>
+  <path fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" d="M105 139c14-14 32-14 46 0m-36 12c8-8 18-8 26 0"/>
+</svg>
