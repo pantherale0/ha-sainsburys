@@ -16,7 +16,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.sainsburys import async_setup_entry, async_unload_entry
 from custom_components.sainsburys.const import CONF_SESSION, DOMAIN
 from custom_components.sainsburys.coordinator import SainsburysDataUpdateCoordinator
-from custom_components.sainsburys.llm import llm_api_id
+from custom_components.sainsburys.llm_api import llm_api_id
 
 
 async def test_setup_and_unload(

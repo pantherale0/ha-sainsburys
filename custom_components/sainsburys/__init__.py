@@ -14,7 +14,7 @@ from .auth import create_auth
 from .const import CONF_SESSION, DOMAIN
 from .coordinator import SainsburysDataUpdateCoordinator
 from .data import SainsburysConfigEntry, SainsburysRuntimeData
-from .llm import async_register_llm_api
+from .llm_api import async_register_llm_api
 from .services import async_setup_services
 
 if TYPE_CHECKING:

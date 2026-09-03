@@ -133,7 +133,11 @@ An empty product search is successful and returns an empty `products` list.
 
 ## Assist and MCP
 
-Each configured account registers an LLM API named **Sainsbury's ({account
+Loaded accounts contribute catalogue and basket tools to the built-in Assist
+API. Conversation agents that use Assist can search products and change the
+basket without selecting an extra API.
+
+Each account also registers a dedicated LLM API named **Sainsbury's ({account
 name})**. Enable it in a conversation agent's **Control Home Assistant**
 options, or connect an MCP client to `/api/mcp/sainsburys-<config_entry_id>`.
 The API identifier is listed by the Home Assistant `llm/api/list` WebSocket

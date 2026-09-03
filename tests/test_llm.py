@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import ClientConnectionError
@@ -21,14 +21,36 @@ from custom_components.sainsburys.const import (
     SERVICE_SEARCH_PRODUCTS,
     SERVICE_SET_BASKET_ITEM,
 )
-from custom_components.sainsburys.llm import (
-    SERVICE_GET_BASKET,
+from custom_components.sainsburys.llm import _llm_tools_class, async_get_tools
+from custom_components.sainsburys.llm_api import (
     SainsburysAPI,
-    SainsburysTool,
     async_register_llm_api,
     llm_api_id,
 )
+from custom_components.sainsburys.llm_api.tools import (
+    SERVICE_GET_BASKET,
+    SainsburysTool,
+)
 from custom_components.sainsburys.services import ATTR_PRODUCT_UID, ATTR_QUERY
+
+TOOL_NAMES = [
+    SERVICE_SEARCH_PRODUCTS,
+    SERVICE_GET_PRODUCT,
+    SERVICE_GET_BASKET,
+    SERVICE_ADD_BASKET_ITEM,
+    SERVICE_SET_BASKET_ITEM,
+    SERVICE_REMOVE_BASKET_ITEM,
+    SERVICE_CLEAR_BASKET,
+]
+
+
+class FakeLLMTools:
+    """Stand-in for homeassistant.components.llm.LLMTools."""
+
+    def __init__(self, tools: list[object], prompt: str | None = None) -> None:
+        """Store contributed tools and prompt."""
+        self.tools = tools
+        self.prompt = prompt
 
 
 def _llm_context() -> llm.LLMContext:
@@ -77,6 +99,55 @@ async def _call_tool(
     )
 
 
+def test_llm_platform_skips_own_api(hass: HomeAssistant) -> None:
+    """Test the platform does not duplicate tools onto the dedicated API."""
+    assert async_get_tools(hass, _llm_context(), f"{DOMAIN}-entry") is None
+
+
+def test_llm_platform_contributes_to_assist(
+    hass: HomeAssistant, sainsburys_data
+) -> None:
+    """Test Assist receives Sainsbury's tools from loaded accounts."""
+    entry = _entry(sainsburys_data)
+    entry.add_to_hass(hass)
+
+    with patch(
+        "custom_components.sainsburys.llm._llm_tools_class",
+        return_value=FakeLLMTools,
+    ):
+        result = async_get_tools(hass, _llm_context(), "assist")
+
+    assert result is not None
+    assert [tool.name for tool in result.tools] == TOOL_NAMES
+    assert "search the Sainsbury's grocery catalogue" in result.prompt
+
+
+def test_llm_platform_without_loaded_account(hass: HomeAssistant) -> None:
+    """Test Assist gets nothing when no Sainsbury's account is loaded."""
+    with patch(
+        "custom_components.sainsburys.llm._llm_tools_class",
+        return_value=FakeLLMTools,
+    ):
+        assert async_get_tools(hass, _llm_context(), "assist") is None
+
+
+def test_llm_platform_without_tools_class(hass: HomeAssistant, sainsburys_data) -> None:
+    """Test Assist is skipped when the llm tools class is unavailable."""
+    entry = _entry(sainsburys_data)
+    entry.add_to_hass(hass)
+    with patch(
+        "custom_components.sainsburys.llm._llm_tools_class",
+        return_value=None,
+    ):
+        assert async_get_tools(hass, _llm_context(), "assist") is None
+
+
+def test_llm_tools_class_handles_missing_component() -> None:
+    """Test older cores without the llm tools platform are tolerated."""
+    result = _llm_tools_class()
+    assert result is None or result.__name__ == "LLMTools"
+
+
 async def test_register_and_unregister_llm_api(hass: HomeAssistant) -> None:
     """Test the account LLM API is registered and removed on unload."""
     entry = MockConfigEntry(domain=DOMAIN, title="Test Shopper")
@@ -98,15 +169,7 @@ async def test_api_instance_tools(hass: HomeAssistant, sainsburys_data) -> None:
     instance = await api.async_get_api_instance(_llm_context())
 
     assert instance.api_prompt.startswith("You can search the Sainsbury's")
-    assert [tool.name for tool in instance.tools] == [
-        SERVICE_SEARCH_PRODUCTS,
-        SERVICE_GET_PRODUCT,
-        SERVICE_GET_BASKET,
-        SERVICE_ADD_BASKET_ITEM,
-        SERVICE_SET_BASKET_ITEM,
-        SERVICE_REMOVE_BASKET_ITEM,
-        SERVICE_CLEAR_BASKET,
-    ]
+    assert [tool.name for tool in instance.tools] == TOOL_NAMES
 
 
 async def test_search_and_get_product_tools(
