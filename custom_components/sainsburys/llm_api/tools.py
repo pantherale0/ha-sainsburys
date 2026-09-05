@@ -235,8 +235,10 @@ class AddBasketItemTool(SainsburysTool):
                 description="Product identifier returned by product search",
             ): cv.string,
             vol.Optional(
-                ATTR_QUANTITY, default=1.0, description="Quantity to add"
-            ): vol.All(vol.Coerce(float), vol.Range(min=0, min_included=False)),
+                ATTR_QUANTITY,
+                default=1.0,
+                description="Quantity to add; must be greater than zero",
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.001)),
         }
     )
 

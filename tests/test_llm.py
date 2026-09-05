@@ -11,6 +11,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import llm
 from pysainsburys import Product
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from voluptuous_openapi import convert
 
 from custom_components.sainsburys.const import (
     DOMAIN,
@@ -30,6 +31,7 @@ from custom_components.sainsburys.llm_api import (
 from custom_components.sainsburys.llm_api.tools import (
     SERVICE_GET_BASKET,
     SainsburysTool,
+    build_sainsburys_tools,
 )
 from custom_components.sainsburys.services import ATTR_PRODUCT_UID, ATTR_QUERY
 
@@ -170,6 +172,28 @@ async def test_api_instance_tools(hass: HomeAssistant, sainsburys_data) -> None:
 
     assert instance.api_prompt.startswith("You can search the Sainsbury's")
     assert [tool.name for tool in instance.tools] == TOOL_NAMES
+
+
+def test_tool_schemas_avoid_exclusive_bounds(sainsburys_data) -> None:
+    """Exclusive bounds become exclusiveMinimum:true under HA 2026.9 Probatio.
+
+    Providers that validate tool schemas as JSON Schema draft 2020-12 then
+    reject the whole request with "True is not of type 'number'".
+    """
+    exclusive = ("exclusiveMinimum", "exclusiveMaximum")
+
+    def _assert_no_exclusive(node: object, path: str) -> None:
+        if isinstance(node, dict):
+            for key in exclusive:
+                assert key not in node, f"{path}.{key}"
+            for key, value in node.items():
+                _assert_no_exclusive(value, f"{path}.{key}")
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                _assert_no_exclusive(value, f"{path}[{index}]")
+
+    for tool in build_sainsburys_tools(_entry(sainsburys_data)):
+        _assert_no_exclusive(convert(tool.parameters), tool.name)
 
 
 async def test_search_and_get_product_tools(
