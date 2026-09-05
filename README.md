@@ -2,8 +2,8 @@
 
 An unofficial Home Assistant integration for a Sainsbury's Groceries Online
 account. It exposes the current basket, latest order and reserved delivery or
-collection slot, provides actions for catalogue search and basket changes, and
-registers an LLM API for Assist and MCP.
+collection slot, provides actions for catalogue search, basket changes, and
+slot search or reservation, and registers an LLM API for Assist and MCP.
 
 This project is not affiliated with, endorsed by or supported by J Sainsbury plc.
 It uses the unofficial
@@ -131,11 +131,43 @@ actions:
 All basket actions request an immediate account refresh after succeeding.
 An empty product search is successful and returns an empty `products` list.
 
+### Search slots
+
+`sainsburys.search_slots` requires `slot_type` (`delivery` or `collection`).
+It returns the week of slots as `slot_type`, `week_start_date` and `days`.
+Optional `week_start_date`, `postcode`, `store_identifier` and `location_uid`
+override the account location context.
+
+```yaml
+action: sainsburys.search_slots
+data:
+  slot_type: delivery
+response_variable: slots
+```
+
+Use `{{ slots.days[0].slots[0].slot_uid }}` with `sainsburys.reserve_slot`.
+
+### Reserve a slot
+
+`sainsburys.reserve_slot` requires `slot_type` and a `slot_uid` from slot
+search. It replaces any current reservation and returns the new reservation.
+Optional `start_time` and `end_time` can be copied from the search result.
+
+```yaml
+action: sainsburys.reserve_slot
+data:
+  slot_type: delivery
+  slot_uid: "{{ slots.days[0].slots[0].slot_uid }}"
+response_variable: reservation
+```
+
+Reserve requests an immediate account refresh after succeeding.
+
 ## Assist and MCP
 
-Loaded accounts contribute catalogue and basket tools to the built-in Assist
-API. Conversation agents that use Assist can search products and change the
-basket without selecting an extra API.
+Loaded accounts contribute catalogue, basket and slot tools to the built-in
+Assist API. Conversation agents that use Assist can search products, change
+the basket, and search or reserve slots without selecting an extra API.
 
 Each account also registers a dedicated LLM API named **Sainsbury's ({account
 name})**. Enable it in a conversation agent's **Control Home Assistant**
@@ -151,14 +183,21 @@ Tools:
 - `get_basket`: current basket lines and totals.
 - `add_basket_item`, `set_basket_item`, `remove_basket_item`, `clear_basket`:
   the same basket changes as the actions above.
+- `search_slots`: list delivery or collection slots. Always pass `slot_type`
+  as `delivery` or `collection`. If the user has not said which they want,
+  ask them; never assume a slot type. Use a returned `slot_uid` with
+  `reserve_slot`.
+- `reserve_slot`: reserve a `slot_uid` from `search_slots`. This replaces any
+  current reservation. Do not invent slot UIDs.
 
-The API cannot check out, take payment, or book a delivery or collection slot.
+The API cannot check out or take payment.
 
 ## Data updates
 
-Account data is polled every 15 minutes. Basket actions trigger an immediate
-refresh. Product search and product detail requests run only when their actions
-are called and do not alter coordinator data.
+Account data is polled every 15 minutes. Basket and slot-reserve actions
+trigger an immediate refresh. Product search, product detail and slot search
+requests run only when their actions are called and do not alter coordinator
+data.
 
 If Sainsbury's is temporarily unavailable, entities become unavailable and
 Home Assistant retries on the next update. Authentication failures prompt for
@@ -167,7 +206,9 @@ reauthentication.
 ## Known limitations
 
 - This is an unofficial cloud integration using private Sainsbury's endpoints.
-- Checkout, payment and slot booking are not supported.
+- Checkout and payment are not supported.
+- Slot reservation uses an experimental Sainsbury's write path and may fail
+  if the live API differs from the inferred payload.
 - Favourites and Nectar offer unlocking are not exposed.
 - Product search is an action response, not a browsable Home Assistant entity.
 - Catch-weight products may require information not exposed by the actions
@@ -192,6 +233,11 @@ credentials changed.
 Run `sainsburys.search_products` and use an exact `product_uid`. If the same
 product appears on multiple basket lines, resolve the duplicate in the
 Sainsbury's website or app first.
+
+### Slot reserve says the slot is invalid
+
+Run `sainsburys.search_slots` with the intended `slot_type` and use an exact
+`slot_uid` from the response. Do not invent slot identifiers.
 
 Diagnostics are available from the integration's device page. The diagnostics
 exclude credentials, account identifiers, contact details and basket line

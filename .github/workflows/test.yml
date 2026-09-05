@@ -34,7 +34,7 @@ jobs:
         run: |
           python3 -m pip install -r requirements_common.txt
           python3 -m pip install -r requirements_dev.txt
-          python3 -m pip install --no-deps pysainsburys==0.0.0
+          python3 -m pip install --no-deps pysainsburys==1.0.3
 
       - name: Run tests
         run: pytest --cov=custom_components.sainsburys --cov-report=term-missing --cov-fail-under=95

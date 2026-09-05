@@ -116,6 +116,9 @@
     "invalid_basket_item": {
       "message": "The product is not present as a unique line in the basket."
     },
+    "invalid_slot": {
+      "message": "The slot could not be reserved. Search for slots and use an exact slot_uid."
+    },
     "update_failed": {
       "message": "Unable to update data from Sainsbury's. Try again later."
     }
@@ -177,6 +180,44 @@
       },
       "name": "Remove basket item"
     },
+    "reserve_slot": {
+      "description": "Reserves a delivery or collection slot, replacing any current reservation.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Sainsbury's account to use. Optional when only one account is configured.",
+          "name": "Account"
+        },
+        "end_time": {
+          "description": "Slot end timestamp from slot search, as ISO-8601.",
+          "name": "End time"
+        },
+        "location_uid": {
+          "description": "Click-and-collect location. Optional; defaults from the account location context.",
+          "name": "Location UID"
+        },
+        "postcode": {
+          "description": "Delivery postcode. Optional; defaults from the account location context.",
+          "name": "Postcode"
+        },
+        "slot_type": {
+          "description": "Whether the slot is for home delivery or click and collect.",
+          "name": "Slot type"
+        },
+        "slot_uid": {
+          "description": "Slot identifier returned by slot search.",
+          "name": "Slot UID"
+        },
+        "start_time": {
+          "description": "Slot start timestamp from slot search, as ISO-8601.",
+          "name": "Start time"
+        },
+        "store_identifier": {
+          "description": "Fulfilment store identifier. Optional; defaults from the account location context.",
+          "name": "Store identifier"
+        }
+      },
+      "name": "Reserve slot"
+    },
     "search_products": {
       "description": "Searches the Sainsbury's grocery catalogue and returns matching products.",
       "fields": {
@@ -198,6 +239,36 @@
         }
       },
       "name": "Search products"
+    },
+    "search_slots": {
+      "description": "Searches available Sainsbury's delivery or collection slots.",
+      "fields": {
+        "config_entry_id": {
+          "description": "Sainsbury's account to use. Optional when only one account is configured.",
+          "name": "Account"
+        },
+        "location_uid": {
+          "description": "Click-and-collect location. Optional; defaults from the account location context.",
+          "name": "Location UID"
+        },
+        "postcode": {
+          "description": "Delivery postcode. Optional; defaults from the account location context.",
+          "name": "Postcode"
+        },
+        "slot_type": {
+          "description": "Whether to search home delivery or click-and-collect slots.",
+          "name": "Slot type"
+        },
+        "store_identifier": {
+          "description": "Fulfilment store identifier. Optional; defaults from the account location context.",
+          "name": "Store identifier"
+        },
+        "week_start_date": {
+          "description": "Monday of the week to search, as YYYY-MM-DD. Defaults to the current week.",
+          "name": "Week start date"
+        }
+      },
+      "name": "Search slots"
     },
     "set_basket_item": {
       "description": "Sets the absolute quantity of a product in the Sainsbury's basket.",

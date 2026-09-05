@@ -63,8 +63,14 @@
     "remove_basket_item": {
       "service": "mdi:cart-minus"
     },
+    "reserve_slot": {
+      "service": "mdi:calendar-plus"
+    },
     "search_products": {
       "service": "mdi:magnify"
+    },
+    "search_slots": {
+      "service": "mdi:calendar-search"
     },
     "set_basket_item": {
       "service": "mdi:cart-edit"

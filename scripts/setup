@@ -8,7 +8,5 @@ cd "$(dirname "$0")/.."
 # before the rest of the dependencies are installed.
 python3 -m pip install --requirement requirements_common.txt
 python3 -m pip install --requirement requirements_dev.txt
-# The current pysainsburys release incorrectly declares Ruff as a runtime
-# dependency at an unpublished version. Install it without dependencies until
-# the upstream package metadata is corrected.
-python3 -m pip install --no-deps pysainsburys==0.0.0
+# Install without dependencies until upstream package metadata is stable.
+python3 -m pip install --no-deps pysainsburys==1.0.3

@@ -1,4 +1,4 @@
-"""LLM tools for Sainsbury's catalogue search and basket changes."""
+"""LLM tools for Sainsbury's catalogue search, basket changes, and slots."""
 
 from __future__ import annotations
 
@@ -7,13 +7,16 @@ from typing import TYPE_CHECKING, Any, override
 import voluptuous as vol
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import llm
+from pysainsburys import SlotType
 
 from custom_components.sainsburys.const import (
     SERVICE_ADD_BASKET_ITEM,
     SERVICE_CLEAR_BASKET,
     SERVICE_GET_PRODUCT,
     SERVICE_REMOVE_BASKET_ITEM,
+    SERVICE_RESERVE_SLOT,
     SERVICE_SEARCH_PRODUCTS,
+    SERVICE_SEARCH_SLOTS,
     SERVICE_SET_BASKET_ITEM,
 )
 from custom_components.sainsburys.services import (
@@ -22,11 +25,16 @@ from custom_components.sainsburys.services import (
     ATTR_PRODUCT_UID,
     ATTR_QUANTITY,
     ATTR_QUERY,
+    ATTR_SLOT_TYPE,
+    ATTR_SLOT_UID,
+    ATTR_WEEK_START_DATE,
     async_add_basket_item,
     async_clear_basket,
     async_get_product,
     async_remove_basket_item,
+    async_reserve_slot,
     async_search_products,
+    async_search_slots,
     async_set_basket_item,
 )
 
@@ -34,7 +42,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.llm import LLMContext, ToolInput
     from homeassistant.util.json import JsonObjectType
-    from pysainsburys import Price, Product
+    from pysainsburys import DeliverySlot, Price, Product, SlotReservation, SlotWeek
 
     from custom_components.sainsburys.coordinator import SainsburysData
     from custom_components.sainsburys.data import SainsburysConfigEntry
@@ -44,8 +52,8 @@ SERVICE_GET_BASKET = "get_basket"
 LLM_SEARCH_PAGE_SIZE = 8
 
 API_PROMPT = (
-    "You can search the Sainsbury's grocery catalogue and manage this "
-    "account's basket.\n"
+    "You can search the Sainsbury's grocery catalogue, manage this "
+    "account's basket, and search or reserve delivery or collection slots.\n"
     "- Call search_products to find items. Use the returned product_uid "
     "values; never invent them.\n"
     "- Call get_product when you need more detail for one product_uid.\n"
@@ -55,8 +63,13 @@ API_PROMPT = (
     "sets an absolute quantity; 0 removes that line.\n"
     "- remove_basket_item removes one product. clear_basket empties the "
     "whole basket; only do this when the user asks.\n"
-    "- Checkout, payment and booking a delivery or collection slot are "
-    "not supported.\n"
+    "- Call search_slots to list delivery or collection slots. Always pass "
+    'slot_type as "delivery" or "collection". If the user has not said '
+    "which they want, ask them; never assume a slot type.\n"
+    "- Call reserve_slot with a slot_uid returned by search_slots and the "
+    "same slot_type. Do not invent slot UIDs. This replaces any current "
+    "reservation.\n"
+    "- Checkout and payment are not supported.\n"
     "Prices are in GBP."
 )
 
@@ -88,6 +101,59 @@ def _serialize_product(product: Product, *, include_nutrition: bool) -> dict[str
             else None
         )
     return payload
+
+
+def _serialize_slot(slot: DeliverySlot) -> dict[str, Any]:
+    """Serialize a compact slot window for an LLM tool response."""
+    return {
+        "slot_uid": slot.slot_uid,
+        "start_time": slot.start_time,
+        "end_time": slot.end_time,
+        "price": slot.price,
+        "is_available": slot.is_available,
+    }
+
+
+def serialize_slot_week(week: SlotWeek) -> dict[str, Any]:
+    """Serialize available slots, grouped by day, for an LLM tool response."""
+    days: list[dict[str, Any]] = []
+    for day in week.days:
+        available = [_serialize_slot(slot) for slot in day.available_slots]
+        if not available:
+            continue
+        days.append(
+            {
+                "date": day.date,
+                "day_label": day.day_label,
+                "slots": available,
+            }
+        )
+    slot_type = week.slot_type
+    return {
+        "slot_type": slot_type.value if slot_type is not None else None,
+        "week_start_date": week.week_start_date,
+        "days": days,
+    }
+
+
+def serialize_reservation(reservation: SlotReservation) -> dict[str, Any]:
+    """Serialize a slot reservation for an LLM tool response."""
+    slot = reservation.slot
+    return {
+        "reservation_type": reservation.reservation_type,
+        "is_expired": reservation.is_expired,
+        "reserved_until": reservation.reserved_until,
+        "slot": (
+            {
+                "slot_uid": slot.slot_uid,
+                "start_time": slot.start_time,
+                "end_time": slot.end_time,
+                "price": slot.price,
+            }
+            if slot is not None
+            else None
+        ),
+    }
 
 
 def serialize_basket(data: SainsburysData) -> dict[str, Any]:
@@ -333,6 +399,76 @@ class ClearBasketTool(SainsburysTool):
         }
 
 
+class SearchSlotsTool(SainsburysTool):
+    """Search delivery or collection slots."""
+
+    name = SERVICE_SEARCH_SLOTS
+    description = (
+        "Search available Sainsbury's grocery slots. slot_type must be "
+        '"delivery" or "collection". If the user has not said whether they '
+        "want delivery or collection, ask them before calling this tool. "
+        "Do not assume a slot type."
+    )
+    parameters = vol.Schema(
+        {
+            vol.Required(
+                ATTR_SLOT_TYPE,
+                description=(
+                    'Slot type: "delivery" or "collection". Ask the user if '
+                    "unknown; do not assume."
+                ),
+            ): vol.In((SlotType.DELIVERY, SlotType.COLLECTION)),
+            vol.Optional(
+                ATTR_WEEK_START_DATE,
+                description="Monday of the week to search, as YYYY-MM-DD",
+            ): cv.string,
+        }
+    )
+
+    @override
+    async def async_run(self, args: dict[str, Any]) -> JsonObjectType:
+        """List available slots for the requested type."""
+        week = await async_search_slots(
+            self._entry,
+            args[ATTR_SLOT_TYPE],
+            week_start_date=args.get(ATTR_WEEK_START_DATE),
+        )
+        return {"week": serialize_slot_week(week)}
+
+
+class ReserveSlotTool(SainsburysTool):
+    """Reserve a delivery or collection slot."""
+
+    name = SERVICE_RESERVE_SLOT
+    description = (
+        "Reserve a delivery or collection slot by slot_uid returned by "
+        "search_slots. Pass the same slot_type used to search. Do not invent "
+        "slot UIDs. This replaces any current reservation."
+    )
+    parameters = vol.Schema(
+        {
+            vol.Required(
+                ATTR_SLOT_TYPE,
+                description='Slot type: "delivery" or "collection"',
+            ): vol.In((SlotType.DELIVERY, SlotType.COLLECTION)),
+            vol.Required(
+                ATTR_SLOT_UID,
+                description="Slot identifier returned by search_slots",
+            ): vol.All(cv.string, vol.Length(min=1)),
+        }
+    )
+
+    @override
+    async def async_run(self, args: dict[str, Any]) -> JsonObjectType:
+        """Reserve a slot and return the refreshed reservation."""
+        reservation = await async_reserve_slot(
+            self._entry,
+            args[ATTR_SLOT_UID],
+            args[ATTR_SLOT_TYPE],
+        )
+        return {"success": True, "reservation": serialize_reservation(reservation)}
+
+
 def build_sainsburys_tools(entry: SainsburysConfigEntry) -> list[llm.Tool]:
     """Build the LLM tool list for a config entry."""
     return [
@@ -343,4 +479,6 @@ def build_sainsburys_tools(entry: SainsburysConfigEntry) -> list[llm.Tool]:
         SetBasketItemTool(entry),
         RemoveBasketItemTool(entry),
         ClearBasketTool(entry),
+        SearchSlotsTool(entry),
+        ReserveSlotTool(entry),
     ]

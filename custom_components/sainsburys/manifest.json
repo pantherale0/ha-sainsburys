@@ -8,6 +8,6 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/pantherale0/ha-sainsburys/issues",
   "loggers": ["pysainsburys"],
-  "requirements": ["pysainsburys==1.0.2"],
+  "requirements": ["pysainsburys==1.0.3"],
   "version": "0.1.0"
 }

@@ -95,3 +95,76 @@ clear_basket:
       selector:
         config_entry:
           integration: sainsburys
+search_slots:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: sainsburys
+    slot_type:
+      required: true
+      example: delivery
+      selector:
+        select:
+          options:
+            - delivery
+            - collection
+    week_start_date:
+      required: false
+      example: "2026-09-07"
+      selector:
+        date:
+    postcode:
+      required: false
+      example: SW1A 1AA
+      selector:
+        text:
+    store_identifier:
+      required: false
+      selector:
+        text:
+    location_uid:
+      required: false
+      selector:
+        text:
+reserve_slot:
+  fields:
+    config_entry_id:
+      required: false
+      selector:
+        config_entry:
+          integration: sainsburys
+    slot_type:
+      required: true
+      example: delivery
+      selector:
+        select:
+          options:
+            - delivery
+            - collection
+    slot_uid:
+      required: true
+      example: slot-delivery-0630
+      selector:
+        text:
+    start_time:
+      required: false
+      selector:
+        text:
+    end_time:
+      required: false
+      selector:
+        text:
+    postcode:
+      required: false
+      selector:
+        text:
+    store_identifier:
+      required: false
+      selector:
+        text:
+    location_uid:
+      required: false
+      selector:
+        text:

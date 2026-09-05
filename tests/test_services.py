@@ -5,10 +5,18 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import voluptuous as vol
 from aiohttp import ClientConnectionError
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from pysainsburys import Product
+from pysainsburys import (
+    DeliverySlot,
+    Product,
+    SlotDay,
+    SlotReservation,
+    SlotType,
+    SlotWeek,
+)
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sainsburys.const import (
@@ -17,10 +25,41 @@ from custom_components.sainsburys.const import (
     SERVICE_CLEAR_BASKET,
     SERVICE_GET_PRODUCT,
     SERVICE_REMOVE_BASKET_ITEM,
+    SERVICE_RESERVE_SLOT,
     SERVICE_SEARCH_PRODUCTS,
+    SERVICE_SEARCH_SLOTS,
     SERVICE_SET_BASKET_ITEM,
 )
 from custom_components.sainsburys.services import _entry_for_call, async_setup_services
+
+
+def _slot_week(slot_type: SlotType = SlotType.DELIVERY) -> SlotWeek:
+    """Return a representative slot week."""
+    return SlotWeek(
+        slot_type=slot_type,
+        week_start_date="2026-09-07",
+        days=[
+            SlotDay(
+                date="2026-09-07",
+                day_label="Monday",
+                slots=[
+                    DeliverySlot(
+                        slot_uid="slot-1",
+                        start_time="2026-09-07T10:00:00+00:00",
+                        end_time="2026-09-07T11:00:00+00:00",
+                        price=4.0,
+                        is_available=True,
+                    ),
+                    DeliverySlot(
+                        slot_uid="slot-full",
+                        start_time="2026-09-07T11:00:00+00:00",
+                        end_time="2026-09-07T12:00:00+00:00",
+                        is_available=False,
+                    ),
+                ],
+            )
+        ],
+    )
 
 
 def _entry() -> MockConfigEntry:
@@ -35,6 +74,20 @@ def _entry() -> MockConfigEntry:
     basket.set_quantity = AsyncMock()
     basket.remove = AsyncMock()
     basket.clear = AsyncMock()
+    slots = entry.runtime_data.coordinator.data.customer.slots
+    slots.list = AsyncMock(return_value=_slot_week())
+    slots.reserve = AsyncMock(
+        return_value=SlotReservation(
+            reservation_type="delivery",
+            is_expired=False,
+            slot=DeliverySlot(
+                slot_uid="slot-1",
+                start_time="2026-09-07T10:00:00+00:00",
+                end_time="2026-09-07T11:00:00+00:00",
+                price=4.0,
+            ),
+        )
+    )
     return entry
 
 
@@ -270,6 +323,169 @@ async def test_basket_connection_errors(
             service_name,
             service_data,
             blocking=True,
+        )
+
+
+@pytest.mark.parametrize(
+    "slot_type",
+    [SlotType.DELIVERY, SlotType.COLLECTION],
+)
+async def test_search_slots(hass: HomeAssistant, slot_type: SlotType) -> None:
+    """Test slot search returns the week payload for both slot types."""
+    entry = _entry()
+    entry.runtime_data.coordinator.data.customer.slots.list.return_value = _slot_week(
+        slot_type
+    )
+    async_setup_services(hass)
+
+    with patch(
+        "custom_components.sainsburys.services._entry_for_call",
+        return_value=entry,
+    ):
+        result = await hass.services.async_call(
+            DOMAIN,
+            SERVICE_SEARCH_SLOTS,
+            {"slot_type": slot_type},
+            blocking=True,
+            return_response=True,
+        )
+
+    assert result["slot_type"] == slot_type
+    assert result["days"][0]["slots"][0]["slot_uid"] == "slot-1"
+    entry.runtime_data.coordinator.data.customer.slots.list.assert_awaited_once_with(
+        slot_type=slot_type,
+        week_start_date=None,
+        postcode=None,
+        store_identifier=None,
+        location_uid=None,
+    )
+
+
+async def test_search_slots_requires_type(hass: HomeAssistant) -> None:
+    """Test slot search does not default a slot type."""
+    async_setup_services(hass)
+
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_SEARCH_SLOTS,
+            {},
+            blocking=True,
+            return_response=True,
+        )
+
+
+async def test_search_slots_rejects_unknown_type(hass: HomeAssistant) -> None:
+    """Test slot search rejects values other than delivery or collection."""
+    async_setup_services(hass)
+
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_SEARCH_SLOTS,
+            {"slot_type": "either"},
+            blocking=True,
+            return_response=True,
+        )
+
+
+async def test_reserve_slot(hass: HomeAssistant) -> None:
+    """Test reserving a slot refreshes account data."""
+    entry = _entry()
+    async_setup_services(hass)
+
+    with patch(
+        "custom_components.sainsburys.services._entry_for_call",
+        return_value=entry,
+    ):
+        result = await hass.services.async_call(
+            DOMAIN,
+            SERVICE_RESERVE_SLOT,
+            {"slot_type": SlotType.DELIVERY, "slot_uid": "slot-1"},
+            blocking=True,
+            return_response=True,
+        )
+
+    entry.runtime_data.coordinator.data.customer.slots.reserve.assert_awaited_once_with(
+        "slot-1",
+        slot_type=SlotType.DELIVERY,
+        start_time=None,
+        end_time=None,
+        postcode=None,
+        store_identifier=None,
+        location_uid=None,
+    )
+    entry.runtime_data.coordinator.async_request_refresh.assert_awaited_once()
+    assert result["slot"]["slot_uid"] == "slot-1"
+
+
+async def test_reserve_slot_invalid(hass: HomeAssistant) -> None:
+    """Test an invalid slot reservation raises a validation error."""
+    entry = _entry()
+    entry.runtime_data.coordinator.data.customer.slots.reserve.side_effect = ValueError
+    async_setup_services(hass)
+
+    with (
+        patch(
+            "custom_components.sainsburys.services._entry_for_call",
+            return_value=entry,
+        ),
+        pytest.raises(ServiceValidationError),
+    ):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_RESERVE_SLOT,
+            {"slot_type": SlotType.COLLECTION, "slot_uid": "missing"},
+            blocking=True,
+            return_response=True,
+        )
+
+
+async def test_search_slots_connection_error(hass: HomeAssistant) -> None:
+    """Test slot search maps a client error."""
+    entry = _entry()
+    entry.runtime_data.coordinator.data.customer.slots.list.side_effect = (
+        ClientConnectionError
+    )
+    async_setup_services(hass)
+
+    with (
+        patch(
+            "custom_components.sainsburys.services._entry_for_call",
+            return_value=entry,
+        ),
+        pytest.raises(HomeAssistantError),
+    ):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_SEARCH_SLOTS,
+            {"slot_type": SlotType.DELIVERY},
+            blocking=True,
+            return_response=True,
+        )
+
+
+async def test_reserve_slot_connection_error(hass: HomeAssistant) -> None:
+    """Test slot reserve maps a client error."""
+    entry = _entry()
+    entry.runtime_data.coordinator.data.customer.slots.reserve.side_effect = (
+        ClientConnectionError
+    )
+    async_setup_services(hass)
+
+    with (
+        patch(
+            "custom_components.sainsburys.services._entry_for_call",
+            return_value=entry,
+        ),
+        pytest.raises(HomeAssistantError),
+    ):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_RESERVE_SLOT,
+            {"slot_type": SlotType.DELIVERY, "slot_uid": "slot-1"},
+            blocking=True,
+            return_response=True,
         )
 
 

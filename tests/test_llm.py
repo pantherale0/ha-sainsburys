@@ -5,11 +5,19 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import voluptuous as vol
 from aiohttp import ClientConnectionError
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import llm
-from pysainsburys import Product
+from pysainsburys import (
+    DeliverySlot,
+    Product,
+    SlotDay,
+    SlotReservation,
+    SlotType,
+    SlotWeek,
+)
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 from voluptuous_openapi import convert
 
@@ -19,7 +27,9 @@ from custom_components.sainsburys.const import (
     SERVICE_CLEAR_BASKET,
     SERVICE_GET_PRODUCT,
     SERVICE_REMOVE_BASKET_ITEM,
+    SERVICE_RESERVE_SLOT,
     SERVICE_SEARCH_PRODUCTS,
+    SERVICE_SEARCH_SLOTS,
     SERVICE_SET_BASKET_ITEM,
 )
 from custom_components.sainsburys.llm import _llm_tools_class, async_get_tools
@@ -33,7 +43,12 @@ from custom_components.sainsburys.llm_api.tools import (
     SainsburysTool,
     build_sainsburys_tools,
 )
-from custom_components.sainsburys.services import ATTR_PRODUCT_UID, ATTR_QUERY
+from custom_components.sainsburys.services import (
+    ATTR_PRODUCT_UID,
+    ATTR_QUERY,
+    ATTR_SLOT_TYPE,
+    ATTR_SLOT_UID,
+)
 
 TOOL_NAMES = [
     SERVICE_SEARCH_PRODUCTS,
@@ -43,6 +58,8 @@ TOOL_NAMES = [
     SERVICE_SET_BASKET_ITEM,
     SERVICE_REMOVE_BASKET_ITEM,
     SERVICE_CLEAR_BASKET,
+    SERVICE_SEARCH_SLOTS,
+    SERVICE_RESERVE_SLOT,
 ]
 
 
@@ -80,6 +97,9 @@ def _entry(sainsburys_data) -> MockConfigEntry:
     basket.set_quantity = AsyncMock()
     basket.remove = AsyncMock()
     basket.clear = AsyncMock()
+    slots = coordinator_data.customer.slots
+    slots.list = AsyncMock()
+    slots.reserve = AsyncMock()
     entry.runtime_data.coordinator.data = coordinator_data
     return entry
 
@@ -122,6 +142,8 @@ def test_llm_platform_contributes_to_assist(
     assert result is not None
     assert [tool.name for tool in result.tools] == TOOL_NAMES
     assert "search the Sainsbury's grocery catalogue" in result.prompt
+    assert "never assume a slot type" in result.prompt
+    assert "ask them" in result.prompt
 
 
 def test_llm_platform_without_loaded_account(hass: HomeAssistant) -> None:
@@ -175,7 +197,8 @@ async def test_api_instance_tools(hass: HomeAssistant, sainsburys_data) -> None:
 
 
 def test_tool_schemas_avoid_exclusive_bounds(sainsburys_data) -> None:
-    """Exclusive bounds become exclusiveMinimum:true under HA 2026.9 Probatio.
+    """
+    Exclusive bounds become exclusiveMinimum:true under HA 2026.9 Probatio.
 
     Providers that validate tool schemas as JSON Schema draft 2020-12 then
     reject the whole request with "True is not of type 'number'".
@@ -321,6 +344,139 @@ async def test_search_connection_error(hass: HomeAssistant, sainsburys_data) -> 
 
     with pytest.raises(HomeAssistantError):
         await _call_tool(hass, entry, SERVICE_SEARCH_PRODUCTS, {ATTR_QUERY: "milk"})
+
+
+async def test_search_slots_tool(hass: HomeAssistant, sainsburys_data) -> None:
+    """Test slot search returns compact available slots for both types."""
+    entry = _entry(sainsburys_data)
+    week = SlotWeek(
+        slot_type=SlotType.COLLECTION,
+        week_start_date="2026-09-07",
+        days=[
+            SlotDay(
+                date="2026-09-07",
+                day_label="Monday",
+                slots=[
+                    DeliverySlot(
+                        slot_uid="slot-1",
+                        start_time="2026-09-07T10:00:00+00:00",
+                        end_time="2026-09-07T11:00:00+00:00",
+                        price=1.5,
+                        is_available=True,
+                    ),
+                    DeliverySlot(
+                        slot_uid="slot-full",
+                        start_time="2026-09-07T11:00:00+00:00",
+                        end_time="2026-09-07T12:00:00+00:00",
+                        is_available=False,
+                    ),
+                ],
+            ),
+            SlotDay(
+                date="2026-09-08",
+                day_label="Tuesday",
+                slots=[
+                    DeliverySlot(
+                        slot_uid="slot-closed",
+                        is_available=False,
+                    )
+                ],
+            ),
+        ],
+    )
+    entry.runtime_data.coordinator.data.customer.slots.list.return_value = week
+
+    result = await _call_tool(
+        hass,
+        entry,
+        SERVICE_SEARCH_SLOTS,
+        {ATTR_SLOT_TYPE: SlotType.COLLECTION},
+    )
+
+    assert result["week"]["slot_type"] == "collection"
+    assert result["week"]["days"][0]["slots"] == [
+        {
+            "slot_uid": "slot-1",
+            "start_time": "2026-09-07T10:00:00+00:00",
+            "end_time": "2026-09-07T11:00:00+00:00",
+            "price": 1.5,
+            "is_available": True,
+        }
+    ]
+    entry.runtime_data.coordinator.data.customer.slots.list.assert_awaited_once_with(
+        slot_type=SlotType.COLLECTION,
+        week_start_date=None,
+    )
+
+
+async def test_search_slots_tool_requires_type(
+    hass: HomeAssistant, sainsburys_data
+) -> None:
+    """Test the slot search tool does not assume a slot type."""
+    with pytest.raises(vol.Invalid):
+        await _call_tool(hass, _entry(sainsburys_data), SERVICE_SEARCH_SLOTS, {})
+
+
+async def test_reserve_slot_tool(hass: HomeAssistant, sainsburys_data) -> None:
+    """Test reserve_slot refreshes and returns a compact reservation."""
+    entry = _entry(sainsburys_data)
+    entry.runtime_data.coordinator.data.customer.slots.reserve.return_value = (
+        SlotReservation(
+            reservation_type="delivery",
+            is_expired=False,
+            reserved_until="2026-09-05T16:00:00+00:00",
+            slot=DeliverySlot(
+                slot_uid="slot-1",
+                start_time="2026-09-07T10:00:00+00:00",
+                end_time="2026-09-07T11:00:00+00:00",
+                price=4.0,
+            ),
+        )
+    )
+
+    result = await _call_tool(
+        hass,
+        entry,
+        SERVICE_RESERVE_SLOT,
+        {ATTR_SLOT_TYPE: SlotType.DELIVERY, ATTR_SLOT_UID: "slot-1"},
+    )
+
+    entry.runtime_data.coordinator.data.customer.slots.reserve.assert_awaited_once()
+    entry.runtime_data.coordinator.async_request_refresh.assert_awaited_once()
+    assert result["success"] is True
+    assert result["reservation"]["slot"]["slot_uid"] == "slot-1"
+
+
+async def test_reserve_slot_tool_invalid(hass: HomeAssistant, sainsburys_data) -> None:
+    """Test an invalid slot reservation raises a validation error."""
+    entry = _entry(sainsburys_data)
+    entry.runtime_data.coordinator.data.customer.slots.reserve.side_effect = ValueError
+
+    with pytest.raises(ServiceValidationError):
+        await _call_tool(
+            hass,
+            entry,
+            SERVICE_RESERVE_SLOT,
+            {ATTR_SLOT_TYPE: SlotType.DELIVERY, ATTR_SLOT_UID: "missing"},
+        )
+
+
+async def test_search_slots_tool_connection_error(
+    hass: HomeAssistant, sainsburys_data
+) -> None:
+    """Test slot search tool failures map to Home Assistant errors."""
+    entry = _entry(sainsburys_data)
+    entry.runtime_data.coordinator.data.customer.slots.list.side_effect = (
+        ClientConnectionError
+    )
+
+    with pytest.raises(HomeAssistantError):
+        await _call_tool(
+            hass,
+            entry,
+            SERVICE_SEARCH_SLOTS,
+            {ATTR_SLOT_TYPE: SlotType.DELIVERY},
+        )
 
 
 async def test_base_tool_run(sainsburys_data) -> None:
