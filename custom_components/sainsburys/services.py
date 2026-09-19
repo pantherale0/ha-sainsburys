@@ -51,7 +51,7 @@ ATTR_WEEK_START_DATE = "week_start_date"
 CLIENT_ERRORS = (AuthError, ClientError, HttpException, TimeoutError)
 
 CONFIG_ENTRY_FIELD = {vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string}
-PRODUCT_FIELD = {vol.Required(ATTR_PRODUCT_UID): int}
+PRODUCT_FIELD = {vol.Required(ATTR_PRODUCT_UID): cv.string}
 SLOT_TYPE_FIELD = {
     vol.Required(ATTR_SLOT_TYPE): vol.In((SlotType.DELIVERY, SlotType.COLLECTION))
 }
