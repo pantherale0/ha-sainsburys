@@ -17,6 +17,7 @@ from pysainsburys import (
     SlotType,
     SlotWeek,
 )
+from pysainsburys.exceptions import HttpException
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sainsburys.const import (
@@ -214,6 +215,31 @@ async def test_connection_error(hass: HomeAssistant) -> None:
             return_value=entry,
         ),
         pytest.raises(HomeAssistantError),
+    ):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_GET_PRODUCT,
+            {"product_uid": "123"},
+            blocking=True,
+            return_response=True,
+        )
+
+
+async def test_http_error_includes_response_details(hass: HomeAssistant) -> None:
+    """Test an HTTP failure exposes the API's diagnostic message."""
+    entry = _entry()
+    entry.runtime_data.client.get_product.side_effect = HttpException(
+        400,
+        '{"errors":[{"code":"INVALID_ITEM","detail":"Item unavailable"}]}',
+    )
+    async_setup_services(hass)
+
+    with (
+        patch(
+            "custom_components.sainsburys.services._entry_for_call",
+            return_value=entry,
+        ),
+        pytest.raises(HomeAssistantError, match="HTTP 400: INVALID_ITEM: Item unavailable"),
     ):
         await hass.services.async_call(
             DOMAIN,

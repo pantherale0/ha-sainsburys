@@ -51,7 +51,7 @@ ATTR_WEEK_START_DATE = "week_start_date"
 CLIENT_ERRORS = (AuthError, ClientError, HttpException, TimeoutError)
 
 CONFIG_ENTRY_FIELD = {vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string}
-PRODUCT_FIELD = {vol.Required(ATTR_PRODUCT_UID): cv.string}
+PRODUCT_FIELD = {vol.Required(ATTR_PRODUCT_UID): cv.integer}
 SLOT_TYPE_FIELD = {
     vol.Required(ATTR_SLOT_TYPE): vol.In((SlotType.DELIVERY, SlotType.COLLECTION))
 }
@@ -126,11 +126,12 @@ def _serialize_product(product: Product) -> dict[str, Any]:
     return product.to_dict()
 
 
-def _action_error() -> HomeAssistantError:
+def _action_error(err: Exception | None = None) -> HomeAssistantError:
     """Create a translated Home Assistant action error."""
     return HomeAssistantError(
         translation_domain=DOMAIN,
         translation_key="action_failed",
+        translation_placeholders={"error": str(err).strip() or "Try again later."},
     )
 
 
@@ -155,7 +156,7 @@ async def _await_client[T](awaitable: Awaitable[T]) -> T:
     try:
         return await awaitable
     except CLIENT_ERRORS as err:
-        raise _action_error() from err
+        raise _action_error(err) from err
 
 
 async def async_search_products(
@@ -197,7 +198,7 @@ async def _async_mutate_basket(
             raise
         raise _invalid_basket_item() from err
     except CLIENT_ERRORS as err:
-        raise _action_error() from err
+        raise _action_error(err) from err
     await entry.runtime_data.coordinator.async_request_refresh()
 
 
@@ -279,7 +280,7 @@ async def async_reserve_slot(
     except ValueError as err:
         raise _invalid_slot() from err
     except CLIENT_ERRORS as err:
-        raise _action_error() from err
+        raise _action_error(err) from err
     await entry.runtime_data.coordinator.async_request_refresh()
     return reservation
 

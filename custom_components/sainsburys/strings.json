@@ -108,7 +108,7 @@
   },
   "exceptions": {
     "action_failed": {
-      "message": "The Sainsbury's action failed due to a connection or authentication error. Try again later."
+      "message": "The Sainsbury's action failed: {error}"
     },
     "authentication_failed": {
       "message": "Sainsbury's authentication expired. Re-authenticate the integration."
