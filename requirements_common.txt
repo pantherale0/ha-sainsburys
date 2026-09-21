@@ -1,2 +1,2 @@
 pip>=21.3.1
-pysainsburys
+pysainsburys==1.0.4
